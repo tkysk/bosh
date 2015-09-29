@@ -126,6 +126,9 @@ describe 'migrated from', type: :integration do
 
         new_disks = current_sandbox.cpi.disk_cids
         expect(new_disks).to match_array(original_disks)
+
+        new_instances = director.instances
+        expect(new_instances.select(&:is_bootstrap).size).to eq(1)
       end
     end
 
@@ -152,6 +155,9 @@ describe 'migrated from', type: :integration do
 
         new_disks = current_sandbox.cpi.disk_cids
         expect(new_disks).to match_array(original_disks)
+
+        new_instances = director.instances
+        expect(new_instances.select(&:is_bootstrap).size).to eq(1)
       end
     end
 
