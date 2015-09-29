@@ -415,7 +415,42 @@ describe 'migrated from', type: :integration do
   end
 
   context 'when migrating job that was already migrated' do
-    context 'when migrated_from is the same'
-    context 'when migrated_from is not the same'
+    before do
+      original_manifest_with_azs = Bosh::Spec::Deployments.simple_manifest
+      job_spec = etcd_z1_job
+      job_spec['availability_zones'] = ['my-az-1']
+      job_spec['networks'].first['name'] = cloud_config_hash_with_azs['networks'].first['name']
+      original_manifest_with_azs['jobs'] = [job_spec]
+      deploy_from_scratch(manifest_hash: original_manifest_with_azs, cloud_config_hash: cloud_config_hash_with_azs)
+      deploy_simple_manifest(manifest_hash: migrated_from_manifest)
+    end
+
+    let(:migrated_from_manifest) do
+      new_manifest_hash = Bosh::Spec::Deployments.simple_manifest
+      job_spec = etcd_job
+      job_spec['instances'] = 1
+      job_spec['networks'].first['name'] = cloud_config_hash_with_azs['networks'].first['name']
+      job_spec['availability_zones'] = ['my-az-1']
+      job_spec['migrated_from'] = [{'name' => 'etcd_z1'}]
+      new_manifest_hash['jobs'] = [job_spec]
+      new_manifest_hash
+    end
+
+    context 'when migrated_from is the same' do
+      it 'successfully deploys' do
+        migrated_from_manifest['jobs'].first['instances'] = 2
+        deploy_simple_manifest(manifest_hash: migrated_from_manifest)
+      end
+    end
+
+    context 'when migrated_from is not the same' do
+      it 'fails' do
+        migrated_from_manifest['jobs'].first['migrated_from'] = [{'name' => 'another_non_existing_job'}]
+        output = deploy_simple_manifest(manifest_hash: migrated_from_manifest, failure_expected: true)
+        expect(output).to include(
+          "Failed to migrate job 'another_non_existing_job' to 'etcd', unknown job 'another_non_existing_job'"
+        )
+      end
+    end
   end
 end

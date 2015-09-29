@@ -53,6 +53,16 @@ module Bosh::Director::Models
     def cloud_properties_hash=(hash)
       self.cloud_properties = JSON.dump(hash)
     end
+
+    def migrated_from_job_names
+      return nil if migrated_from.nil?
+
+      JSON.parse(migrated_from)
+    end
+
+    def migrated_from_job_names=(list)
+      self.migrated_from = JSON.dump(list)
+    end
   end
 
   Instance.plugin :association_dependencies
