@@ -55,7 +55,7 @@ module Bosh::Director::Models
     end
 
     def migrated_from_job_names
-      return nil if migrated_from.nil?
+      return [] if migrated_from.nil?
 
       JSON.parse(migrated_from)
     end

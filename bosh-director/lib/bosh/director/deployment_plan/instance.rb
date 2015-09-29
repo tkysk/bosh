@@ -209,6 +209,11 @@ module Bosh::Director
         end
       end
 
+      def update_migrated_from
+        migrated_from_job_names = job.migrated_from.map(&:name)
+        @model.update(migrated_from_job_names: migrated_from_job_names)
+      end
+
       ##
       # @return [Hash] persistent disk cloud properties
       def disk_cloud_properties

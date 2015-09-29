@@ -60,13 +60,33 @@ module Bosh::Director
         end
 
         context 'when migrated_from job does not exist in previous deployment' do
-          it 'raises an error' do
-            expect {
-              job_migrator.find_existing_instances(etcd_job)
-            }.to raise_error(
-                DeploymentInvalidMigratedFromJob,
-                "Failed to migrate job 'etcd_z1' to 'etcd', unknown job 'etcd_z1'"
+          context 'when job was not already migrated from that job' do
+            it 'raises an error' do
+              expect {
+                job_migrator.find_existing_instances(etcd_job)
+              }.to raise_error(
+                  DeploymentInvalidMigratedFromJob,
+                  "Failed to migrate job 'etcd_z1' to 'etcd', unknown job 'etcd_z1'"
+                )
+            end
+          end
+
+          context 'when job was already migrated from that job' do
+            before do
+              Models::Instance.make(
+                job: 'etcd',
+                index: 0,
+                deployment: deployment_model,
+                vm: nil,
+                migrated_from_job_names: ['etcd_z1']
               )
+            end
+
+            it 'does not raise an error' do
+              expect {
+                job_migrator.find_existing_instances(etcd_job)
+              }.to_not raise_error
+            end
           end
         end
 

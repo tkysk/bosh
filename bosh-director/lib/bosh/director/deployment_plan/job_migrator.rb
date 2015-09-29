@@ -54,7 +54,7 @@ module Bosh::Director
           end
         end
 
-        if migrated_from_job_instances.empty?
+        if migrated_from_job_instances.empty? && instance.model.migrated_from_job_names
           raise DeploymentInvalidMigratedFromJob,
             "Failed to migrate job '#{migrated_from_job.name}' to '#{desired_job_name}', unknown job '#{migrated_from_job.name}'"
         end

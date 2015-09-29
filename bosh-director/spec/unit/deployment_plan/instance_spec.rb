@@ -39,7 +39,8 @@ module Bosh::Director::DeploymentPlan
         name: 'fake-job',
         persistent_disk_type: disk_type,
         compilation?: false,
-        can_run_as_errand?: false
+        can_run_as_errand?: false,
+        migrated_from: []
       )
     end
     let(:resource_pool) { instance_double('Bosh::Director::DeploymentPlan::ResourcePool', name: 'fake-resource-pool', cloud_properties: {}) }
@@ -1126,9 +1127,7 @@ module Bosh::Director::DeploymentPlan
     end
 
     describe '#bind_existing_reservations' do
-      before do
-        instance.bind_existing_instance_model(instance_model)
-      end
+      before { instance.bind_existing_instance_model(instance_model) }
 
       context 'when instance has reservations in db' do
         before do
@@ -1155,6 +1154,31 @@ module Bosh::Director::DeploymentPlan
             instance.bind_existing_reservations(nil)
             expect(instance.existing_network_reservations.map(&:ip)).to eq([])
           end
+        end
+      end
+    end
+
+    describe '#update_migrated_from' do
+      before { instance.bind_existing_instance_model(instance_model) }
+
+      context 'when job was migrated from another jobs' do
+        before do
+          allow(job).to receive(:migrated_from).and_return([
+            MigratedFromJob.new('fake-migrated-from-job-1'),
+            MigratedFromJob.new('fake-migrated-from-job-2'),
+          ])
+        end
+
+        it 'sets migrated_from on instance as list of migrated job names' do
+          instance.update_migrated_from
+          expect(instance_model.migrated_from_job_names).to eq(['fake-migrated-from-job-1', 'fake-migrated-from-job-2'])
+        end
+      end
+
+      context 'when job was not migrated from another job' do
+        it 'sets migrated_from on instance as empty list' do
+          instance.update_migrated_from
+          expect(instance_model.migrated_from_job_names).to be_empty
         end
       end
     end
