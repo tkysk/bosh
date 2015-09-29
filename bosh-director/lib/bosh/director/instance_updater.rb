@@ -26,6 +26,7 @@ module Bosh::Director
     def update(instance_plan, options = {})
       instance = instance_plan.instance
       @logger.info("Updating instance #{instance}, changes: #{instance_plan.changes.to_a.join(', ').inspect}")
+      update_model(instance_plan)
 
       @canary = options.fetch(:canary, false)
 
@@ -177,6 +178,17 @@ module Bosh::Director
       end
 
       disk.destroy
+    end
+
+    def update_model(instance_plan)
+      instance = instance_plan.instance
+      desired_instance = instance_plan.desired_instance
+      instance.model.update(
+        job: desired_instance.job.name,
+        bootstrap: desired_instance.bootstrap?,
+        index: desired_instance.index,
+        availability_zone: desired_instance.availability_zone
+      )
     end
 
     def update_dns(instance_plan)
