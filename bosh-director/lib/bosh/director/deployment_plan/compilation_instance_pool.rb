@@ -33,6 +33,7 @@ module Bosh::Director
       end
 
       def with_single_use_vm(stemcell)
+
         begin
           instance = create_instance(stemcell)
           configure_instance(instance)
@@ -60,12 +61,10 @@ module Bosh::Director
       end
 
       def create_instance(stemcell)
-        resource_pool = CompilationResourcePool.new(
-          stemcell,
-          @deployment_plan.compilation.cloud_properties,
-          @deployment_plan.compilation.env
-        )
-        compile_job = CompilationJob.new(resource_pool, @deployment_plan)
+        vm_type = CompilationVmType.new(@deployment_plan.compilation.cloud_properties)
+        env = Env.new(@deployment_plan.compilation.env)
+
+        compile_job = CompilationJob.new(vm_type, stemcell, env, @deployment_plan)
         availability_zone = @deployment_plan.compilation.availability_zone
         Instance.new(compile_job, 0, 'started', @deployment_plan, {}, availability_zone, false, @logger)
       end
@@ -85,13 +84,11 @@ module Bosh::Director
 
     private
 
-    class CompilationResourcePool
-      attr_reader :stemcell, :cloud_properties, :env
+    class CompilationVmType
+      attr_reader :cloud_properties
 
-      def initialize(stemcell, cloud_properties, env)
-        @stemcell = stemcell
+      def initialize(cloud_properties)
         @cloud_properties = cloud_properties
-        @env = env
       end
 
       def spec
@@ -100,10 +97,12 @@ module Bosh::Director
     end
 
     class CompilationJob
-      attr_reader :resource_pool, :name, :deployment
+      attr_reader :vm_type, :stemcell, :env, :name, :deployment
 
-      def initialize(resource_pool,deployment)
-        @resource_pool = resource_pool
+      def initialize(vm_type, stemcell, env, deployment)
+        @vm_type = vm_type
+        @stemcell = stemcell
+        @env = env
         @network = deployment.compilation.network_name
         @name = "compilation-#{SecureRandom.uuid}"
         @deployment = deployment
