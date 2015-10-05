@@ -505,18 +505,21 @@ module Bosh::Director::DeploymentPlan
     end
 
     describe '#vm_type_changed?' do
+      before do
+        vm_model.apply_spec=({'vm_type' => { 'name' => 'fake-vm-type2', 'cloud_properties' => {'bar' => 'baz'}}})
+        instance.bind_unallocated_vm
+        instance.bind_to_vm_model(vm_model)
+      end
+
+
       describe 'when the vm types spec does not match the existing state' do
-        let(:vm_type_spec) { {'name' => 'fake-vm-type', 'cloud_properties' => {'bar' => 'baz'}} }
-
-        let(:current_state) { {'vm_type' => vm_type_spec} }
-
         it 'should return changed' do
           expect(instance.vm_type_changed?).to be(true)
         end
 
         it 'should log the change reason' do
           expect(logger).to receive(:debug).with('vm_type_changed? changed FROM: ' +
-                '{"name"=>"fake-vm-type", "cloud_properties"=>{"bar"=>"baz"}} ' +
+                '{"name"=>"fake-vm-type2", "cloud_properties"=>{"bar"=>"baz"}} ' +
                 'TO: ' +
                 '{"name"=>"fake-vm-type", "cloud_properties"=>{}}')
           instance.vm_type_changed?

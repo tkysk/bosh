@@ -724,6 +724,33 @@ describe Bosh::Director::DeploymentPlan::JobSpecParser do
         expect(job.env.spec).to eq({'key' => 'value'})
 
       end
+
+      context 'vm type cannot be found' do
+        before do
+          allow(deployment_plan).to receive(:vm_type).with('fake-vm-type').and_return(nil)
+        end
+
+        it 'errors out' do
+          expect{parser.parse(job_spec)}.to raise_error(
+              Bosh::Director::JobUnknownVmType,
+              "Job `fake-job-name' references an unknown vm type `fake-vm-type'"
+            )
+        end
+      end
+
+      context 'stemcell cannot be found' do
+        before do
+          allow(deployment_plan).to receive(:stemcell).with('fake-stemcell').and_return(nil)
+        end
+
+        it 'errors out' do
+          expect{parser.parse(job_spec)}.to raise_error(
+              Bosh::Director::JobUnknownStemcell,
+              "Job `fake-job-name' references an unknown stemcell `fake-stemcell'"
+            )
+        end
+      end
+
     end
 
     describe 'properties key' do
