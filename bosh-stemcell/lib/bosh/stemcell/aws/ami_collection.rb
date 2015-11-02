@@ -10,46 +10,96 @@ module Bosh::Stemcell::Aws
 
     attr_reader :stemcell
 
-    def initialize(stemcell, regions, virtualization_type)
+    def initialize(stemcell, regions, virtualization_type, access_key_id, secret_access_key, bucket_name, logger)
       @stemcell = stemcell
       @seed_region = regions.first
       @dest_regions = regions - [@seed_region]
       @virtualization_type = virtualization_type
 
-      @access_key_id = ENV['BOSH_AWS_ACCESS_KEY_ID']
-      @secret_access_key = ENV['BOSH_AWS_SECRET_ACCESS_KEY']
+      @access_key_id = access_key_id
+      @secret_access_key = secret_access_key
+      @import_instance_bucket_name = bucket_name
+      @logger = logger
     end
 
-    def publish
-      logger = Logger.new('ami.log')
-      cloud_config = OpenStruct.new(logger: logger, task_checkpoint: nil)
+    def produce_amis
+      cloud_config = OpenStruct.new(logger: @logger, task_checkpoint: nil)
+      cloud_options = {
+        'plugin' => 'aws',
+        'properties' => {
+          'aws' => {
+            'access_key_id' => @access_key_id,
+            'secret_access_key' => @secret_access_key,
+            'region' => @seed_region,
+            'default_key_name' => 'fake',
+          },
+          'registry' => {
+            'endpoint' => 'http://fake.registry',
+            'user' => 'fake',
+            'password' => 'fake'
+          }
+        }
+      }
       Bosh::Clouds::Config.configure(cloud_config)
-      cloud = Bosh::Clouds::Provider.create(cloud_options, 'fake-director-uuid')
+      aws_cpi = Bosh::Clouds::Provider.create(cloud_options, 'fake-director-uuid')
 
-      region_ami_mapping = {}
       @stemcell.extract do |tmp_dir, stemcell_manifest|
         cloud_properties = stemcell_manifest['cloud_properties'].merge(
           'virtualization_type' => @virtualization_type
         )
 
-        seed_ami_id = cloud.create_stemcell("#{tmp_dir}/image", cloud_properties)
+        image_path = "#{tmp_dir}/image"
+        shell = nil
+        import_instance_args = [
+          %w(-t m1.xlarge),
+          [image_path],
+          ['-f', @virtualization_type],
+          ['-o', @access_key_id],
+          ['-w', @secret_access_key],
+          ['-b', @import_instance_bucket_name]
+        ]
+        shell.run('ec2-import-instance', *import_instance_args)
+
+        # seed_ami_id = cloud.create_stemcell(image_path, cloud_properties)
+
         seed_ami = cloud.ec2.images[seed_ami_id]
         seed_ami.public = true
-        region_ami_mapping = copy_to_regions(logger, seed_ami_id, seed_ami.name, seed_ami.tags)
+
+        if @dest_regions.include?(Region::CHINA) || @seed_region == Region::CHINA
+          china_ami_id = publish_to_china(image_path, cloud_properties)
+          region_ami_mapping[@china_region] = china_ami_id
+        end
+
+        non_china_regions = @dest_regions.select { |region| region != Region::CHINA }
+        region_ami_mapping = copy_to_regions(logger, seed_ami_id, seed_ami.name, seed_ami.tags, non_china_regions)
         region_ami_mapping[@seed_region] = seed_ami_id
       end
-
-      region_ami_mapping
     end
 
     private
 
-    def copy_to_regions(logger, source_id, source_name, source_tags)
+    def publish_to_china(image_path, cloud_properties)
+      china_access_key_id = ENV['BOSH_AWS_CHINA_ACCESS_KEY_ID']
+      china_secret_access_key = ENV['BOSH_AWS_CHINA_SECRET_ACCESS_KEY']
+
+      if china_access_key_id.nil? || china_secret_access_key.nil?
+        raise "AWS China specific access key and secret key must be provided"
+      end
+
+      cloud_options = cloud_options_with(china_access_key_id, china_secret_access_key, Region::CHINA)
+      cloud = Bosh::Clouds::Provider.create(cloud_options, 'fake-director-uuid')
+      china_ami_id = cloud.create_stemcell(image_path, cloud_properties)
+      china_ami = cloud.ec2.images[china_ami_id]
+      china_ami.public = true
+      china_ami_id
+    end
+
+    def copy_to_regions(logger, source_id, source_name, source_tags, dest_regions)
       threads = []
       mutex = Mutex.new
       region_ami_mapping = {}
 
-      @dest_regions.each do |dest_region|
+      dest_regions.each do |dest_region|
         threads << Thread.new do
           copied_ami_id = copy_to_region(logger, source_id, source_name, source_tags, @seed_region, dest_region)
           mutex.synchronize { region_ami_mapping[dest_region] = copied_ami_id }
@@ -117,27 +167,6 @@ module Bosh::Stemcell::Aws
         attempts += 1
         sleep(0.5*attempts)
       end
-    end
-
-    # At some point we should extract the logic in cloud.create_stemcell into a library which can be used here
-    # it doesn't make a lot of sense to new up a set of options of the registry.
-    def cloud_options
-      {
-        'plugin' => 'aws',
-        'properties' => {
-          'aws' => {
-            'access_key_id' => @access_key_id,
-            'secret_access_key' => @secret_access_key,
-            'region' => @seed_region,
-            'default_key_name' => 'fake'
-          },
-          'registry' => {
-            'endpoint' => 'http://fake.registry',
-            'user' => 'fake',
-            'password' => 'fake'
-          }
-        }
-      }
     end
   end
 end

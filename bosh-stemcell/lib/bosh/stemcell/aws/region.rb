@@ -5,9 +5,11 @@ module Bosh
     module Aws
       class Region
         DEFAULT = 'us-east-1'
+        CHINA = 'cn-north-1'
         REGIONS = %w{
           us-east-1 us-west-1 us-west-2 eu-west-1 eu-central-1
           ap-southeast-1 ap-southeast-2 ap-northeast-1 sa-east-1
+          cn-north-1
         }
       end
     end
