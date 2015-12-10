@@ -168,7 +168,7 @@ module Bosh
         new_dhcp_options.associate(vpc_id)
         #say "\tcreated and associated DHCP options #{new_dhcp_options.id}".make_green
 
-        default_dhcp_opts.delete
+#        default_dhcp_opts.delete
       end
 
       def attach_internet_gateway(gateway_id)
